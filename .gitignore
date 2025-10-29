@@ -10,3 +10,9 @@ target/
 *.key
 *.pem
 *.srl
+ca.conf
+crlnumber
+index.txt
+
+# Mac
+.DS_Store

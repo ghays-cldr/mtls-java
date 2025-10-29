@@ -212,10 +212,12 @@ EOF
 
     # Check if the keystore was created successfully
     if [ -f "$KEYSTORE_NAME" ]; then
-        echo -e "${GREEN}✓ ${TYPE^} keystore created successfully: $KEYSTORE_NAME${NC}"
+        # Capitalize TYPE for display (bash 3.2 compatible)
+        TYPE_DISPLAY="$(echo "${TYPE:0:1}" | tr '[:lower:]' '[:upper:]')${TYPE:1}"
+        echo -e "${GREEN}✓ ${TYPE_DISPLAY} keystore created successfully: $KEYSTORE_NAME${NC}"
         echo ""
         echo "Keystore details:"
-        echo "  Type: ${TYPE^}"
+        echo "  Type: ${TYPE_DISPLAY}"
         echo "  File: $KEYSTORE_NAME"
         echo "  Password: $KEYSTORE_PASSWORD"
         echo "  Alias: $KEY_ALIAS"
