@@ -6,17 +6,19 @@
 
 # Function to display usage
 usage() {
-    echo "Usage: $0 [-all|-client|-server] [-single-use]"
-    echo "  -all        Create both client.jks and server.jks keystores plus truststore.jks (default)"
-    echo "  -client     Create client.jks keystore with client certificate only"
-    echo "  -server     Create server.jks keystore with server certificate only"
-    echo "  -single-use Set serverAuth EKU in client certificate for single-use scenarios"
+    echo "Usage: $0 [-all|-client|-server] [-single-use] [-critical-eku]"
+    echo "  -all         Create both client.jks and server.jks keystores plus truststore.jks (default)"
+    echo "  -client      Create client.jks keystore with client certificate only"
+    echo "  -server      Create server.jks keystore with server certificate only"
+    echo "  -single-use  Set serverAuth EKU in client certificate for single-use scenarios"
+    echo "  -critical-eku Mark Extended Key Usage extension as critical"
     exit 1
 }
 
 # Parse command line arguments
 KEYSTORE_TYPE="all"
 SINGLE_USE=false
+CRITICAL_EKU=false
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -31,6 +33,9 @@ while [ $# -gt 0 ]; do
             ;;
         -single-use)
             SINGLE_USE=true
+            ;;
+        -critical-eku)
+            CRITICAL_EKU=true
             ;;
         -h|--help)
             usage
@@ -101,13 +106,20 @@ create_keystore() {
 
     # Sign the certificate with the CA
     if [ "$TYPE" = "server" ]; then
+        # Determine EKU line based on criticality flag
+        if [ "$CRITICAL_EKU" = true ]; then
+            EKU_LINE="extendedKeyUsage = critical, serverAuth"
+        else
+            EKU_LINE="extendedKeyUsage = serverAuth"
+        fi
+        
         # Create extensions file for server certificate
         cat > temp_server_ext.cnf << EOF
 [v3_req]
 authorityKeyIdentifier=keyid,issuer
 basicConstraints=CA:FALSE
 keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
-extendedKeyUsage = serverAuth
+${EKU_LINE}
 subjectAltName = @alt_names
 
 [alt_names]
@@ -132,13 +144,20 @@ EOF
     else
         # Create extensions file for client certificate
         if [ "$SINGLE_USE" = true ]; then
+            # Determine EKU line based on criticality flag for single-use
+            if [ "$CRITICAL_EKU" = true ]; then
+                EKU_LINE="extendedKeyUsage = critical, serverAuth"
+            else
+                EKU_LINE="extendedKeyUsage = serverAuth"
+            fi
+            
             # Single-use client certificate with serverAuth EKU
             cat > temp_client_ext.cnf << EOF
 [v3_req]
 authorityKeyIdentifier=keyid,issuer
 basicConstraints=CA:FALSE
 keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
-extendedKeyUsage = serverAuth
+${EKU_LINE}
 subjectAltName = @alt_names
 
 [alt_names]
@@ -146,13 +165,20 @@ DNS.1 = client
 EOF
             echo -e "${YELLOW}Creating single-use client certificate with serverAuth EKU...${NC}"
         else
+            # Determine EKU line based on criticality flag for standard client
+            if [ "$CRITICAL_EKU" = true ]; then
+                EKU_LINE="extendedKeyUsage = critical, clientAuth"
+            else
+                EKU_LINE="extendedKeyUsage = clientAuth"
+            fi
+            
             # Standard client certificate with clientAuth EKU
             cat > temp_client_ext.cnf << EOF
 [v3_req]
 authorityKeyIdentifier=keyid,issuer
 basicConstraints=CA:FALSE
 keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
-extendedKeyUsage = clientAuth
+${EKU_LINE}
 subjectAltName = @alt_names
 
 [alt_names]
@@ -226,6 +252,9 @@ EOF
         echo "  Signed by CA: $CA_CERT"
         if [ "$TYPE" = "client" ] && [ "$SINGLE_USE" = true ]; then
             echo "  Mode: Single-use (serverAuth EKU)"
+        fi
+        if [ "$CRITICAL_EKU" = true ]; then
+            echo "  EKU Criticality: Critical"
         fi
         echo ""
         
